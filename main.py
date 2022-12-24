@@ -15,7 +15,7 @@ from point_e.models.configs import MODEL_CONFIGS, model_from_config
 from point_e.util.plotting import plot_point_cloud
 
 # Variables
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_name = ''
 base_model = None
@@ -146,12 +146,11 @@ def image2model(image, model_type):
         fig = output_figure()
         return buffer_plot_and_get(fig)
 
-
 # Entry Point
 def main():
     global device
     with gr.Blocks() as gui:
-        gr.Markdown("POINT-E WebUI by @tonyx86")
+        gr.Markdown("# POINT-E WebUI by @tonyx86")
 
         with gr.Tab("Text to 3D"):
             with gr.Group():
@@ -177,7 +176,8 @@ def main():
             gr.Label(platform.platform(), label='Platform information')
             gr.Label(torch.cuda.get_device_name(device), label='Current pytorch device')
             gr.Label(cwd_path, label='Current directory')
-    
+
+        gr.HTML('<a href="https://www.donationalerts.com/r/tonyonyxyt">Donations</a>')
     gui.launch()
 
 if __name__ == '__main__':
