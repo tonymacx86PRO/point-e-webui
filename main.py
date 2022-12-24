@@ -16,7 +16,7 @@ from point_e.models.configs import MODEL_CONFIGS, model_from_config
 from point_e.util.plotting import plot_point_cloud
 
 # Variables
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_name = ''
 base_model = None
@@ -127,6 +127,18 @@ def output_figure():
     pc = sampler.output_to_point_clouds(samples)[0]
     return plot_point_cloud(pc, grid_size=3, fixed_bounds=((-0.75, -0.75, -0.75),(0.75, 0.75, 0.75)))
 
+# Resize to 256x256 and crop
+def prepare_img(img):
+    w, h = img.size
+    if w > h:
+        img = img.crop((w - h) / 2, 0, w - (w - h) / 2, h)
+    else:
+        img = img.crop((0, (h - w) / 2, w, h - (h - w) / 2))
+    
+    img = img.resize((256, 256))
+    
+    return img
+
 # Button "Generate" text to 3D click
 def text2model(text, model_type):
     global gd_scale
@@ -149,7 +161,8 @@ def image2model(image, model_type):
     else:
         load_model(model_type)    
         create_sampler(1, gd_scale)
-        image2pc(image)
+        prep_img = prepare_img(image)
+        image2pc(prep_img)
         fig = output_figure()
         image = buffer_plot_and_get(fig)
         image.save(image2pc_path + str(random.randint(1, 9999)) + ".png")
