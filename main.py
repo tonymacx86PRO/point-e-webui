@@ -16,7 +16,7 @@ from point_e.models.configs import MODEL_CONFIGS, model_from_config
 from point_e.util.plotting import plot_point_cloud
 
 # Variables
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_name = ''
 base_model = None
