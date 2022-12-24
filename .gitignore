@@ -2,5 +2,9 @@
 /point-e
 /point_e_model_cache
 
+# Outputs
+/outputs/text2pc/*
+/outputs/image2pc/*
+
 # Other stuff
 another-demo.py

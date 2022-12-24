@@ -7,6 +7,7 @@ import os
 import torch
 from tqdm.auto import tqdm
 import PIL
+import random
 
 from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
 from point_e.diffusion.sampler import PointCloudSampler
@@ -136,7 +137,9 @@ def text2model(text, model_type):
         create_sampler(0, gd_scale)
         text2pc(text)
         fig = output_figure()
-        return buffer_plot_and_get(fig)
+        image = buffer_plot_and_get(fig)
+        image.save(text2pc_path + text + "-" + str(random.randint(1, 9999)) + ".png")
+        return image
 
 # Button "Generate" image to 3D click
 def image2model(image, model_type):
@@ -148,7 +151,9 @@ def image2model(image, model_type):
         create_sampler(1, gd_scale)
         image2pc(image)
         fig = output_figure()
-        return buffer_plot_and_get(fig)
+        image = buffer_plot_and_get(fig)
+        image.save(image2pc_path + str(random.randint(1, 9999)) + ".png")
+        return image
 
 # Update guidance scale
 def gd_scale_changed(i):
