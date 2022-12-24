@@ -15,7 +15,7 @@ from point_e.models.configs import MODEL_CONFIGS, model_from_config
 from point_e.util.plotting import plot_point_cloud
 
 # Variables
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_name = ''
 base_model = None
@@ -26,6 +26,7 @@ samples = None
 sampler = None
 
 cwd_path = os.getcwd()
+gd_scale = 3.0
 text2pc_path = f'{cwd_path}\\outputs\\text2pc\\'
 image2pc_path = f'{cwd_path}\\outputs\\image2pc\\'
 
@@ -69,7 +70,7 @@ def load_model(model_name):
         base_name = ''
 
 # Create sampler by type 0: TEXT SAMPLER; 1: IMAGE SAMPLER
-def create_sampler(type):
+def create_sampler(type, gd_scale):
     global device
     global base_model
     global upsampler_model
@@ -84,7 +85,7 @@ def create_sampler(type):
             diffusions=[base_diffusion, upsampler_diffusion],
             num_points=[1024, 4096 - 1024],
             aux_channels=['R', 'G', 'B'],
-            guidance_scale=[3.0, 0.0],
+            guidance_scale=[gd_scale, 0.0],
             model_kwargs_key_filter=('texts', ''), # Do not condition the upsampler at all
         )
     elif type == 1:
@@ -95,7 +96,7 @@ def create_sampler(type):
             diffusions=[base_diffusion, upsampler_diffusion],
             num_points=[1024, 4096 - 1024],
             aux_channels=['R', 'G', 'B'],
-            guidance_scale=[3.0, 3.0],
+            guidance_scale=[gd_scale, gd_scale],
         )
 
 def buffer_plot_and_get(fig):
@@ -127,24 +128,32 @@ def output_figure():
 
 # Button "Generate" text to 3D click
 def text2model(text, model_type):
+    global gd_scale
     if len(text) == 0:
         return None
     else:
         load_model(model_type)
-        create_sampler(0)
+        create_sampler(0, gd_scale)
         text2pc(text)
         fig = output_figure()
         return buffer_plot_and_get(fig)
 
+# Button "Generate" image to 3D click
 def image2model(image, model_type):
+    global gd_scale
     if image is None:
         return None
     else:
         load_model(model_type)    
-        create_sampler(1)
+        create_sampler(1, gd_scale)
         image2pc(image)
         fig = output_figure()
         return buffer_plot_and_get(fig)
+
+# Update guidance scale
+def gd_scale_changed(i):
+    global gd_scale
+    gd_scale = float(i)
 
 # Entry Point
 def main():
@@ -156,6 +165,8 @@ def main():
             with gr.Group():
                 input_prompt = gr.Textbox(label='Prompt')
                 model_type_t = gr.Dropdown(label='Model', choices=['base40M-textvec'], interactive=True, value='base40M-textvec')
+                gd_scale_t = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale')
+                gd_scale_t.change(gd_scale_changed, [gd_scale_t])
             with gr.Group():
                 output_image_t = gr.Image(label='Output',interactive=False)
             text2model_btn = gr.Button(value="Generate")
@@ -165,6 +176,8 @@ def main():
             with gr.Group():
                 input_image = gr.Image(label='Input image')
                 model_type_i = gr.Dropdown(label='Model', choices=['base40M', 'base300M', 'base1B'], interactive=True, value='base40M')
+                gd_scale_i = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale')
+                gd_scale_i.change(gd_scale_changed, [gd_scale_i])
             with gr.Group():
                 output_image_i = gr.Image(label='Output',interactive=False)
             image2model_btn = gr.Button(value="Generate")
