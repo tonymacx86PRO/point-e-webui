@@ -25,7 +25,7 @@ import trimesh
 # Variables
 
 # CONSTANTS
-VERSION = "0.1.9"
+VERSION = "0.2.0"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -347,7 +347,7 @@ def main():
             sdf_upsampler_reload_btn = gr.Button(value='SDF and Upsampler reload')
             shared_url.change(sharedurl_update, [shared_url], [shared_url])
             save_btn.click(button_save)
-            sdf_upsampler_reload_btn(upsamplesdf_model_load)
+            sdf_upsampler_reload_btn.click(upsamplesdf_model_load)
         
         gr.HTML('<a href="https://www.donationalerts.com/r/tonyonyxyt">Donations</a>')
     gui.launch(share=cfg["PublicURL"])
