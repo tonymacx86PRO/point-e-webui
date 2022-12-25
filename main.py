@@ -25,7 +25,7 @@ import trimesh
 # Variables
 
 # CONSTANTS
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -149,6 +149,7 @@ def create_sampler(type, gd_scale):
 def text2samples(prompt):
     global samples
     global sampler
+    info("Sampling text...")
     for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(texts=[prompt]))):
         samples = x
 
@@ -156,11 +157,13 @@ def text2samples(prompt):
 def image2samples(image):
     global samples
     global sampler
+    info("Sampling image...")
     for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[image]))):
         samples = x
 
 # Get plot from point cloud
 def pc2plot(pc):
+    info("Making plot from point cloud")
     return go.Figure(
         data=[
             go.Scatter3d(
@@ -180,12 +183,13 @@ def pc2plot(pc):
 # Save *.ply mesh file from point cloud
 def save_ply(pc, file_name, grid_size):
     global sdf_model
+    info(f"Saving *.ply mesh with {grid_size} grid size.")
     # Produce a mesh (with vertex colors)
     mesh = marching_cubes_mesh(
         pc=pc,
         model=sdf_model,
         batch_size=4096,
-        grid_size=grid_size, # increase to 128 for resolution used in evals
+        grid_size=int(grid_size), # increase to 128 for resolution used in evals
         progress=True,
     )
 
@@ -195,9 +199,10 @@ def save_ply(pc, file_name, grid_size):
 
 # *.ply -> *.obj and return obj
 def ply2obj(ply_file, obj_file):
+    info("Converting *.ply to *.obj")
     mesh = trimesh.load(ply_file)
     mesh.export(obj_file)
-
+    info("The creation of the model is completed, it is saved in the outputs folder!")
     return obj_file
 
 # Button "Generate" text to 3D click
@@ -280,7 +285,7 @@ def main():
                     input_prompt = gr.Textbox(label='Prompt')
                     model_type_t = gr.Dropdown(label='Model', choices=['base40M-textvec'], interactive=True, value='base40M-textvec')
                     gd_scale_t = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale', step=0.5)
-                    grid_size_t = gr.Slider(0.0, 500.0, 32.0, label='Grid size of 3D model', step=0.5)
+                    grid_size_t = gr.Slider(0, 500, 32, label='Grid size of 3D model', step=1)
                     text2model_btn = gr.Button(value="Generate")
                 with gr.Column():
                     output_plot_t = gr.Plot(label='Point Cloud')
@@ -295,7 +300,7 @@ def main():
                     input_image = gr.Image(label='Input image')
                     model_type_i = gr.Dropdown(label='Model', choices=['base40M', 'base300M', 'base1B'], interactive=True, value='base40M')
                     gd_scale_i = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale', step=0.5)
-                    grid_size_i = gr.Slider(0.0, 500.0, 32.0, label='Grid size of 3D model', step=0.5)
+                    grid_size_i = gr.Slider(0, 500, 32, label='Grid size of 3D model', step=1)
                     image2model_btn = gr.Button(value="Generate")
                 with gr.Column():
                     output_plot_i = gr.Plot(label='Point Cloud')
