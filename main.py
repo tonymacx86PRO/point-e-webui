@@ -23,7 +23,7 @@ import plotly.graph_objs as go
 import trimesh
 
 # Variables
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 base_name = ''
 base_model = None
@@ -36,6 +36,7 @@ sampler = None
 
 cwd_path = os.getcwd()
 gd_scale = 3.0
+grid_size = 32.0
 text2pc_path = f'{cwd_path}\\outputs\\text2pc\\'
 image2pc_path = f'{cwd_path}\\outputs\\image2pc\\'
 
@@ -151,7 +152,7 @@ def pc2plot(pc):
     )
 
 
-def save_ply(pc, file_name, grid_size): # TODO: GRID_SIZE SLIDER
+def save_ply(pc, file_name, grid_size):
     global sdf_model
     # Produce a mesh (with vertex colors)
     mesh = marching_cubes_mesh(
@@ -176,6 +177,7 @@ def ply2obj(ply_file, obj_file):
 # Button "Generate" text to 3D click
 def text2model(text, model_type):
     global gd_scale
+    global grid_size
     global sampler
     global samples
     if len(text) == 0:
@@ -190,12 +192,15 @@ def text2model(text, model_type):
 
         with open(text2pc_path + text + "-" + str(fake_seed) + "-pc.ply", "wb") as f:
             pc.write_ply(f)
-        save_ply(pc, text2pc_path + text + "-" + str(fake_seed) + "-mesh.ply", 32)
+        save_ply(pc, text2pc_path + text + "-" + str(fake_seed) + "-mesh.ply", grid_size)
         return pc2plot(pc), ply2obj(text2pc_path + text + "-" + str(fake_seed) + "-mesh.ply", text2pc_path + text + "-" + str(fake_seed) + ".obj")
 
 # Button "Generate" image to 3D click
 def image2model(image, model_type):
     global gd_scale
+    global grid_size
+    global sampler
+    global samples
     if image is None:
         return None
     else:
@@ -208,13 +213,18 @@ def image2model(image, model_type):
 
         with open(image2pc_path + str(fake_seed) + "-pc.ply", "wb") as f:
             pc.write_ply(f)
-        save_ply(pc, image2pc_path + str(fake_seed) + "-mesh.ply", 32)
+        save_ply(pc, image2pc_path + str(fake_seed) + "-mesh.ply", grid_size)
         return pc2plot(pc), ply2obj(image2pc_path + str(fake_seed) + "-mesh.ply", image2pc_path + str(fake_seed) + ".obj")
 
 # Update guidance scale
 def gd_scale_changed(i):
     global gd_scale
     gd_scale = float(i)
+
+# Update grid size
+def grid_size_changed(i):
+    global grid_size
+    grid_size = float(i)
 
 # Entry Point
 def main():
@@ -228,12 +238,14 @@ def main():
                     input_prompt = gr.Textbox(label='Prompt')
                     model_type_t = gr.Dropdown(label='Model', choices=['base40M-textvec'], interactive=True, value='base40M-textvec')
                     gd_scale_t = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale', step=0.5)
+                    grid_size_t = gr.Slider(0.0, 500.0, 32.0, label='Grid size of 3D model', step=0.5)
                     text2model_btn = gr.Button(value="Generate")
                 with gr.Column():
                     output_plot_t = gr.Plot(label='Point Cloud')
                     output_3d_t = gr.Model3D(value=None)
             text2model_btn.click(text2model, [input_prompt, model_type_t], [output_plot_t, output_3d_t])
             gd_scale_t.change(gd_scale_changed, [gd_scale_t])
+            grid_size_t.change(grid_size_changed, [grid_size_t])
         
         with gr.Tab("Image to 3D"):
             with gr.Row():
@@ -241,12 +253,14 @@ def main():
                     input_image = gr.Image(label='Input image')
                     model_type_i = gr.Dropdown(label='Model', choices=['base40M', 'base300M', 'base1B'], interactive=True, value='base40M')
                     gd_scale_i = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale', step=0.5)
+                    grid_size_i = gr.Slider(0.0, 500.0, 32.0, label='Grid size of 3D model', step=0.5)
                     image2model_btn = gr.Button(value="Generate")
                 with gr.Column():
                     output_plot_i = gr.Plot(label='Point Cloud')
                     output_3d_i = gr.Model3D(value=None)
                 image2model_btn.click(image2model, [input_image, model_type_i], [output_plot_i, output_3d_i])
                 gd_scale_i.change(gd_scale_changed, [gd_scale_i])
+                grid_size_i.change(grid_size_changed, [grid_size_i])
         
         with gr.Tab("Information"):
             gr.Label(VERSION, label='WebUI version')
