@@ -25,7 +25,7 @@ import trimesh
 # Variables
 
 # CONSTANTS
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -39,6 +39,7 @@ base_diffusion = None
 upsampler_model = None
 upsampler_diffusion = None
 sdf_model = None
+sdf_name = 'sdf'
 samples = None
 sampler = None
 
@@ -80,40 +81,56 @@ else:
         info("Saved a new config file")
 
 # Load model by name
-def load_model(model_name):
+def base_load(model_name, preload = False):
     global device
     global base_name
     global base_model
     global base_diffusion
+    try:
+        if model_name != base_name:
+            if preload != True:
+                info(f'Loading base model {model_name}')
+            else:
+                info('Preloading default base model')
+            # Base model preparation
+            base_name = model_name # Image-based: base40M, base300M, base1B; Text-based: base40M-textvec
+            base_model = model_from_config(MODEL_CONFIGS[base_name], device)
+            base_model.eval()
+            base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
+
+            # Load all models
+            base_model.load_state_dict(load_checkpoint(base_name, device))
+
+    except:
+        error(f'Failed to load base model {model_name}')
+
+
+def upsamplesdf_model_load():
+    global device
     global upsampler_model
     global upsampler_diffusion
     global sdf_model
-    try:
-        info(f'Loading model {model_name}')
-        # Base model preparation
-        base_name = model_name # Image-based: base40M, base300M, base1B; Text-based: base40M-textvec
-        base_model = model_from_config(MODEL_CONFIGS[base_name], device)
-        base_model.eval()
-        base_diffusion = diffusion_from_config(DIFFUSION_CONFIGS[base_name])
+    global sdf_name
 
+    try:
+        info("Prepared upsampler model")
         # Upsampler model preparation
         upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
         upsampler_model.eval()
         upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
 
+        info("Prepared SDF model")
         # SDF model preparation
-        sdf_name = 'sdf'
         sdf_model = model_from_config(MODEL_CONFIGS[sdf_name], device)
         sdf_model.eval()
 
-        # Load all models
-        base_model.load_state_dict(load_checkpoint(base_name, device))
+        # Load this up
         upsampler_model.load_state_dict(load_checkpoint('upsample', device))
+        info("Loaded upsampler model")
         sdf_model.load_state_dict(load_checkpoint(sdf_name, device))
-
+        info("Loaded SDF model")
     except:
-        error(f'Failed to load {model_name}')
-        base_name = ''
+        error('Failed to load UPSAMPLER and SDF model')
 
 # Create sampler by type 0: TEXT SAMPLER; 1: IMAGE SAMPLER
 def create_sampler(type, gd_scale):
@@ -214,8 +231,8 @@ def text2model(text, model_type):
     if len(text) == 0:
         return None
     else:
-        fake_seed = random.randint(1, 999999)
-        load_model(model_type)
+        fake_seed = random.randint(1, 9999999)
+        base_load(model_type)
         create_sampler(0, gd_scale)
         text2samples(text)
         pc = sampler.output_to_point_clouds(samples)[0]
@@ -235,8 +252,8 @@ def image2model(image, model_type):
     if image is None:
         return None
     else:
-        fake_seed = random.randint(1, 999999)
-        load_model(model_type)    
+        fake_seed = random.randint(1, 9999999)
+        base_load(model_type)    
         create_sampler(1, gd_scale)
         image2samples(image)
         pc = sampler.output_to_point_clouds(samples)[0]
@@ -274,6 +291,12 @@ def button_save():
 def main():
     global device
     global cfg
+
+    # Preload once when starting interface SDF and UPSAMPLER
+    upsamplesdf_model_load()
+
+    # Preload default model
+    base_load('base40M-textvec')
 
     # GRADIO GUI
     with gr.Blocks() as gui:
@@ -321,8 +344,10 @@ def main():
             + " Also here you will find all sorts of useful infrequently used buttons.")
             shared_url = gr.Checkbox(value = cfg["PublicURL"], label = 'Give a public link to the Internet when starting WebUI')
             save_btn = gr.Button(value="Save")
+            sdf_upsampler_reload_btn = gr.Button(value='SDF and Upsampler reload')
             shared_url.change(sharedurl_update, [shared_url], [shared_url])
             save_btn.click(button_save)
+            sdf_upsampler_reload_btn(upsamplesdf_model_load)
         
         gr.HTML('<a href="https://www.donationalerts.com/r/tonyonyxyt">Donations</a>')
     gui.launch(share=cfg["PublicURL"])
