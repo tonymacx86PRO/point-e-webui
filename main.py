@@ -25,7 +25,7 @@ import trimesh
 # Variables
 
 # CONSTANTS
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -296,7 +296,7 @@ def main():
     upsamplesdf_model_load()
 
     # Preload default model
-    base_load('base40M-textvec')
+    base_load('base40M-textvec', True)
 
     # GRADIO GUI
     with gr.Blocks() as gui:
