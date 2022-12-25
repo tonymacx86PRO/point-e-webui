@@ -1,5 +1,5 @@
 # Imports
-import io
+import json
 import platform
 import sys
 import gradio as gr
@@ -23,8 +23,16 @@ import plotly.graph_objs as go
 import trimesh
 
 # Variables
-VERSION = "0.1.6"
+
+# CONSTANTS
+VERSION = "0.1.7"
+CWD = os.getcwd()
+
+# Pytorch device
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# All models variables
 base_name = ''
 base_model = None
 base_diffusion = None
@@ -34,12 +42,19 @@ sdf_model = None
 samples = None
 sampler = None
 
-cwd_path = os.getcwd()
-gd_scale = 3.0
-grid_size = 32.0
-text2pc_path = f'{cwd_path}\\outputs\\text2pc\\'
-image2pc_path = f'{cwd_path}\\outputs\\image2pc\\'
+# Config dictionary
 
+cfg = {
+    "PublicURL" : False
+}
+
+# Parameters in the model
+gd_scale = 3.0 # Guidance scale
+grid_size = 32.0 # Grid size of the model
+text2pc_path = f'{CWD}\\outputs\\text2pc\\' # text2pc path
+image2pc_path = f'{CWD}\\outputs\\image2pc\\' # image2pc path
+
+# Before main()
 
 # Print information
 def info(msg):
@@ -52,6 +67,17 @@ def error(msg):
 # Print warning
 def warn(msg):
     print(f"[WARNING] {msg}")
+
+# Load config
+if os.path.exists("config.json"):
+    with open("config.json", "r") as cfgfile:
+        data = json.load(cfgfile)
+        cfg = data
+        info('Loaded config file')
+else:
+    with open("config.json", "w") as cfgfile:
+        cfgfile.write(json.dumps(cfg))
+        info("Saved a new config file")
 
 # Load model by name
 def load_model(model_name):
@@ -151,7 +177,7 @@ def pc2plot(pc):
         ),
     )
 
-
+# Save *.ply mesh file from point cloud
 def save_ply(pc, file_name, grid_size):
     global sdf_model
     # Produce a mesh (with vertex colors)
@@ -216,19 +242,35 @@ def image2model(image, model_type):
         save_ply(pc, image2pc_path + str(fake_seed) + "-mesh.ply", grid_size)
         return pc2plot(pc), ply2obj(image2pc_path + str(fake_seed) + "-mesh.ply", image2pc_path + str(fake_seed) + ".obj")
 
-# Update guidance scale
+# Update guidance scale (setter)
 def gd_scale_changed(i):
     global gd_scale
     gd_scale = float(i)
 
-# Update grid size
+# Update grid size (setter)
 def grid_size_changed(i):
     global grid_size
     grid_size = float(i)
 
+# Shared URL update
+def sharedurl_update(chk_state):
+    global cfg
+    cfg["PublicURL"] = chk_state
+    return cfg["PublicURL"]
+
+
+def button_save():
+    global cfg
+    with open("config.json", "w") as cfgfile:
+        cfgfile.write(json.dumps(cfg))
+        info("Config file saved")
+
 # Entry Point
 def main():
     global device
+    global cfg
+
+    # GRADIO GUI
     with gr.Blocks() as gui:
         gr.Markdown("# POINT-E WebUI by @tonyx86")
 
@@ -267,10 +309,18 @@ def main():
             gr.Label(sys.version, label='Python version')
             gr.Label(platform.platform(), label='Platform information')
             gr.Label(torch.cuda.get_device_name(device), label='Current pytorch device')
-            gr.Label(cwd_path, label='Current directory')
-
+            gr.Label(CWD, label='Current directory')
+        
+        with gr.Tab("Settings"):
+            gr.Markdown("## You can change the settings in the config file but also here visually."
+            + " Also here you will find all sorts of useful infrequently used buttons.")
+            shared_url = gr.Checkbox(value = cfg["PublicURL"], label = 'Give a public link to the Internet when starting WebUI')
+            save_btn = gr.Button(value="Save")
+            shared_url.change(sharedurl_update, [shared_url], [shared_url])
+            save_btn.click(button_save)
+        
         gr.HTML('<a href="https://www.donationalerts.com/r/tonyonyxyt">Donations</a>')
-    gui.launch()
+    gui.launch(share=cfg["PublicURL"])
 
 if __name__ == '__main__':
     main()
