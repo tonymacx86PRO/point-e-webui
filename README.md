@@ -28,3 +28,13 @@ A: Just like WebUI, only you have to go to the point-e folder and run `git pull`
 Q: If I have an error `ModuleNotFoundError`, what I need to do?
 
 A: Try run `pip install -r requirements.txt` again. The fact is that if a new version of the script requires some kind of library, you must install it.
+
+Q: Where are my results saved?
+
+A: In the outputs/ folder there are two folders, one model created by text and the other by images.
+
+Q: What are the files inside the outputs folder?
+
+A: The first file is a *.ply file with a point cloud
+The second file is a *.ply file with a mesh
+The third file is a *.obj file, the same with a mesh only converted from *.ply
