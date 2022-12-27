@@ -3,4 +3,5 @@ Pillow
 pyntcloud
 plotly
 trimesh
+tqdm
 gradio

@@ -6,6 +6,7 @@
 ## Requirements
 
  - Python 3.10.6
+ - Internet connection (POINT-E loads from the Internet models that are not in the folder, if there is, then it starts loading into memory and generating)
  - Git
  - Install pytorch from official website for CPU or GPU
  - Run in the main folder: `pip install -r requirements.txt`
@@ -38,3 +39,7 @@ Q: What are the files inside the outputs folder?
 A: The first file is a *.ply file with a point cloud
 The second file is a *.ply file with a mesh
 The third file is a *.obj file, the same with a mesh only converted from *.ply
+
+Q: What is the point_e_modelcache folder?
+
+A: This is the folder where the POINT-E models are located, which are downloaded to generate 3d models.

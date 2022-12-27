@@ -1,35 +1,39 @@
-# Imports
+# Import standalone libraries
 import json
 import platform
 import sys
-import gradio as gr
+import random
 import os
+
+# Gradio(UI), Torch (ML Library), Progress bar library (tqdm), Pillow (Library for images)
+import gradio as gr
 import torch
 from tqdm.auto import tqdm
 import PIL
-import random
 
+# My modules
+from modules import log
+
+# POINT-E Library
 from point_e.diffusion.configs import DIFFUSION_CONFIGS, diffusion_from_config
 from point_e.diffusion.sampler import PointCloudSampler
 from point_e.models.download import load_checkpoint
 from point_e.models.configs import MODEL_CONFIGS, model_from_config
-from point_e.util.plotting import plot_point_cloud
 from point_e.util.pc_to_mesh import marching_cubes_mesh
 
-from pyntcloud import PyntCloud
-import matplotlib.colors
+# Library for plots
 import plotly.graph_objs as go
 
+# 3D Library
 import trimesh
 
 # Variables
 
 # CONSTANTS
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 CWD = os.getcwd()
 
 # Pytorch device
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # All models variables
@@ -44,41 +48,30 @@ samples = None
 sampler = None
 
 # Config dictionary
-
 cfg = {
     "PublicURL" : False
 }
 
-# Parameters in the model
+# Settings in the POINT-E
 gd_scale = 3.0 # Guidance scale
-grid_size = 32.0 # Grid size of the model
+grid_size = 32 # Grid size of the 3D model
 text2pc_path = f'{CWD}\\outputs\\text2pc\\' # text2pc path
 image2pc_path = f'{CWD}\\outputs\\image2pc\\' # image2pc path
 
 # Before main()
 
-# Print information
-def info(msg):
-    print(f"[INFO] {msg}")
-
-# Print error
-def error(msg):
-    print(f"[ERROR] {msg}")
-
-# Print warning
-def warn(msg):
-    print(f"[WARNING] {msg}")
+log.info(f'Starting POINT-E WebUI by @tonyx86, version: {VERSION}')
 
 # Load config
 if os.path.exists("config.json"):
     with open("config.json", "r") as cfgfile:
         data = json.load(cfgfile)
         cfg = data
-        info('Loaded config file')
+        log.info('Loaded config file')
 else:
     with open("config.json", "w") as cfgfile:
         cfgfile.write(json.dumps(cfg))
-        info("Saved a new config file")
+        log.info("Saved a new config file")
 
 # Load model by name
 def base_load(model_name, preload = False):
@@ -89,9 +82,9 @@ def base_load(model_name, preload = False):
     try:
         if model_name != base_name:
             if preload != True:
-                info(f'Loading base model {model_name}')
+                log.info(f'Loading base model {model_name}')
             else:
-                info('Preloading default base model')
+                log.info('Preloading default base model')
             # Base model preparation
             base_name = model_name # Image-based: base40M, base300M, base1B; Text-based: base40M-textvec
             base_model = model_from_config(MODEL_CONFIGS[base_name], device)
@@ -102,7 +95,8 @@ def base_load(model_name, preload = False):
             base_model.load_state_dict(load_checkpoint(base_name, device))
 
     except:
-        error(f'Failed to load base model {model_name}')
+        log.error(f'Failed to load base model {model_name}')
+        sys.exit(1)
 
 
 def upsamplesdf_model_load():
@@ -113,24 +107,25 @@ def upsamplesdf_model_load():
     global sdf_name
 
     try:
-        info("Prepared upsampler model")
+        log.info("Prepared upsampler model")
         # Upsampler model preparation
         upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
         upsampler_model.eval()
         upsampler_diffusion = diffusion_from_config(DIFFUSION_CONFIGS['upsample'])
 
-        info("Prepared SDF model")
+        log.info("Prepared SDF model")
         # SDF model preparation
         sdf_model = model_from_config(MODEL_CONFIGS[sdf_name], device)
         sdf_model.eval()
 
         # Load this up
         upsampler_model.load_state_dict(load_checkpoint('upsample', device))
-        info("Loaded upsampler model")
+        log.info("Loaded upsampler model")
         sdf_model.load_state_dict(load_checkpoint(sdf_name, device))
-        info("Loaded SDF model")
+        log.info("Loaded SDF model")
     except:
-        error('Failed to load UPSAMPLER and SDF model')
+        log.error('Failed to load UPSAMPLER and SDF model')
+        sys.exit(1)
 
 # Create sampler by type 0: TEXT SAMPLER; 1: IMAGE SAMPLER
 def create_sampler(type, gd_scale):
@@ -141,7 +136,7 @@ def create_sampler(type, gd_scale):
     global upsampler_diffusion
     global sampler
     if type == 0:
-        info(f'Text sampler created')
+        log.info(f'Text sampler created')
         sampler = PointCloudSampler(
             device=device,
             models=[base_model, upsampler_model],
@@ -152,7 +147,7 @@ def create_sampler(type, gd_scale):
             model_kwargs_key_filter=('texts', ''), # Do not condition the upsampler at all
         )
     elif type == 1:
-        info(f'Image sampler created')
+        log.info(f'Image sampler created')
         sampler = PointCloudSampler(
             device=device,
             models=[base_model, upsampler_model],
@@ -166,21 +161,19 @@ def create_sampler(type, gd_scale):
 def text2samples(prompt):
     global samples
     global sampler
-    info("Sampling text...")
-    for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(texts=[prompt]))):
+    for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(texts=[prompt])), desc="Sampling text"):
         samples = x
 
 # Sampling image
 def image2samples(image):
     global samples
     global sampler
-    info("Sampling image...")
-    for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[image]))):
+    for x in tqdm(sampler.sample_batch_progressive(batch_size=1, model_kwargs=dict(images=[image])), desc="Sampling image"):
         samples = x
 
 # Get plot from point cloud
 def pc2plot(pc):
-    info("Making plot from point cloud")
+    log.info("Making plot from point cloud")
     return go.Figure(
         data=[
             go.Scatter3d(
@@ -200,7 +193,7 @@ def pc2plot(pc):
 # Save *.ply mesh file from point cloud
 def save_ply(pc, file_name, grid_size):
     global sdf_model
-    info(f"Saving *.ply mesh with {grid_size} grid size.")
+    log.info(f"Saving *.ply mesh with {grid_size} grid size.")
     # Produce a mesh (with vertex colors)
     mesh = marching_cubes_mesh(
         pc=pc,
@@ -216,10 +209,9 @@ def save_ply(pc, file_name, grid_size):
 
 # *.ply -> *.obj and return obj
 def ply2obj(ply_file, obj_file):
-    info("Converting *.ply to *.obj")
+    log.info("Converting *.ply to *.obj")
     mesh = trimesh.load(ply_file)
     mesh.export(obj_file)
-    info("The creation of the model is completed, it is saved in the outputs folder!")
     return obj_file
 
 # Button "Generate" text to 3D click
@@ -231,7 +223,7 @@ def text2model(text, model_type):
     if len(text) == 0:
         return None
     else:
-        fake_seed = random.randint(1, 9999999)
+        fake_seed = random.randint(1, 99999999)
         base_load(model_type)
         create_sampler(0, gd_scale)
         text2samples(text)
@@ -240,7 +232,11 @@ def text2model(text, model_type):
 
         with open(text2pc_path + text + "-" + str(fake_seed) + "-pc.ply", "wb") as f:
             pc.write_ply(f)
+
         save_ply(pc, text2pc_path + text + "-" + str(fake_seed) + "-mesh.ply", grid_size)
+        with open(f'outputs\\text2pc\\{text}-{fake_seed}.json', 'w') as sum_file:
+            sum_file.write(log.generation_settings(model_type=model_type, prompt=text, gd_scale=gd_scale,
+            grid_size=grid_size, fake_seed=fake_seed, version=VERSION))
         return pc2plot(pc), ply2obj(text2pc_path + text + "-" + str(fake_seed) + "-mesh.ply", text2pc_path + text + "-" + str(fake_seed) + ".obj")
 
 # Button "Generate" image to 3D click
@@ -252,7 +248,7 @@ def image2model(image, model_type):
     if image is None:
         return None
     else:
-        fake_seed = random.randint(1, 9999999)
+        fake_seed = random.randint(1, 99999999)
         base_load(model_type)    
         create_sampler(1, gd_scale)
         image2samples(image)
@@ -262,17 +258,21 @@ def image2model(image, model_type):
         with open(image2pc_path + str(fake_seed) + "-pc.ply", "wb") as f:
             pc.write_ply(f)
         save_ply(pc, image2pc_path + str(fake_seed) + "-mesh.ply", grid_size)
+
+        with open(f'outputs\\image2pc\\{fake_seed}.json', 'w') as sum_file:
+            sum_file.write(log.generation_settings(model_type=model_type, gd_scale=gd_scale,
+            grid_size=grid_size, fake_seed=fake_seed, version=VERSION))
         return pc2plot(pc), ply2obj(image2pc_path + str(fake_seed) + "-mesh.ply", image2pc_path + str(fake_seed) + ".obj")
 
 # Update guidance scale (setter)
 def gd_scale_changed(i):
     global gd_scale
-    gd_scale = float(i)
+    gd_scale = i
 
 # Update grid size (setter)
 def grid_size_changed(i):
     global grid_size
-    grid_size = float(i)
+    grid_size = i
 
 # Shared URL update
 def sharedurl_update(chk_state):
@@ -285,7 +285,7 @@ def button_save():
     global cfg
     with open("config.json", "w") as cfgfile:
         cfgfile.write(json.dumps(cfg))
-        info("Config file saved")
+        log.info("Config file saved")
 
 # Entry Point
 def main():
@@ -350,6 +350,7 @@ def main():
             sdf_upsampler_reload_btn.click(upsamplesdf_model_load)
         
         gr.HTML('<a href="https://www.donationalerts.com/r/tonyonyxyt">Donations</a>')
+    log.info("Loaded WebUI")
     gui.launch(share=cfg["PublicURL"])
 
 if __name__ == '__main__':
