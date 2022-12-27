@@ -27,10 +27,13 @@ import plotly.graph_objs as go
 # 3D Library
 import trimesh
 
+# Diffusers library
+from diffusers import StableDiffusionPipeline
+
 # Variables
 
 # CONSTANTS
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -47,6 +50,9 @@ sdf_name = 'sdf'
 samples = None
 sampler = None
 
+# Stable diffusion pipe
+sd_pipe = None
+
 # Config dictionary
 cfg = {
     "PublicURL" : False
@@ -57,6 +63,7 @@ gd_scale = 3.0 # Guidance scale
 grid_size = 32 # Grid size of the 3D model
 text2pc_path = f'{CWD}\\outputs\\text2pc\\' # text2pc path
 image2pc_path = f'{CWD}\\outputs\\image2pc\\' # image2pc path
+sd2pc_path = f'{CWD}\\outputs\\sd2pc\\' # sd2pc path
 
 # Before main()
 
@@ -126,6 +133,14 @@ def upsamplesdf_model_load():
     except:
         log.error('Failed to load UPSAMPLER and SDF model')
         sys.exit(1)
+
+def sd_model_load():
+    global sd_pipe
+    global device
+    sd_pipe = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", revision="fp16", torch_dtype=torch.float16)
+    sd_pipe.to(device)
+    log.info("Loaded stable diffusion 1.5")
+
 
 # Create sampler by type 0: TEXT SAMPLER; 1: IMAGE SAMPLER
 def create_sampler(type, gd_scale):
@@ -264,6 +279,42 @@ def image2model(image, model_type):
             grid_size=grid_size, fake_seed=fake_seed, version=VERSION))
         return pc2plot(pc), ply2obj(image2pc_path + str(fake_seed) + "-mesh.ply", image2pc_path + str(fake_seed) + ".obj")
 
+
+# Button "Generate" stable diffusion to 3D click
+def sd2model(prompt, neg_prompt, steps, model_type):
+    global sd_pipe
+    global device
+    global gd_scale
+    global grid_size
+    global sampler
+    global samples
+    if len(prompt) == 0 and len(neg_prompt) == 0:
+        pass
+    else:
+        fake_seed = random.randint(1, 999999999999)
+        base_load(model_type)
+        create_sampler(1, gd_scale)
+        tmp_generator = torch.Generator(device).manual_seed(fake_seed)
+
+        log.info('Generating image with SD 1.5')
+        generated_image = sd_pipe(prompt, guidance_scale = 7.5, num_inference_steps=steps, generator=tmp_generator).images[0]
+        res_img = generated_image.resize((256, 256))
+        log.info('Image generated passing to img2pc')
+        image2samples(res_img)
+        pc = sampler.output_to_point_clouds(samples)[0]
+        fig = pc2plot(pc)
+        with open(sd2pc_path + str(fake_seed) + "-pc.ply", "wb") as f:
+            pc.write_ply(f)
+        save_ply(pc, sd2pc_path + str(fake_seed) + "-mesh.ply", grid_size)
+
+        with open(f'outputs\\sd2pc\\{fake_seed}.json', 'w') as sum_file:
+            sum_file.write(log.generation_settings(prompt = prompt,model_type=model_type, gd_scale=gd_scale,
+            grid_size=grid_size, fake_seed=fake_seed, version=VERSION))
+        
+        res_img.save(f'outputs\\sd2pc\\{fake_seed}.png')
+
+        return pc2plot(pc), ply2obj(sd2pc_path + str(fake_seed) + "-mesh.ply", sd2pc_path + str(fake_seed) + ".obj")
+
 # Update guidance scale (setter)
 def gd_scale_changed(i):
     global gd_scale
@@ -298,6 +349,9 @@ def main():
     # Preload default model
     base_load('base40M-textvec', True)
 
+    # Preload SD
+    sd_model_load()
+
     # GRADIO GUI
     with gr.Blocks() as gui:
         gr.Markdown("# POINT-E WebUI by @tonyx86")
@@ -331,6 +385,25 @@ def main():
                 image2model_btn.click(image2model, [input_image, model_type_i], [output_plot_i, output_3d_i])
                 gd_scale_i.change(gd_scale_changed, [gd_scale_i])
                 grid_size_i.change(grid_size_changed, [grid_size_i])
+        
+        with gr.Tab("Stable Diffusion to 3D"):
+            gr.Markdown("## Temporarily use the runwayml/stable-diffusion-v1-5 model and also a Euler A sampler")
+            with gr.Row():
+                with gr.Column():
+                        sd_prompt = gr.Textbox(label='Prompt')
+                        sd_prompt_neg = gr.Textbox(label='Negative prompt')
+                        sd_steps = gr.Slider(0, 200, 20, label='Stable diffusion steps', step=1)
+                        model_type_esd = gr.Dropdown(label='Model', choices=['base40M', 'base300M', 'base1B'], interactive=True, value='base40M')
+                        gd_scale_esd = gr.Slider(0.0, 50.0, 3.0, label='Guidance scale', step=0.5)
+                        grid_size_esd = gr.Slider(0, 500, 32, label='Grid size of 3D model', step=1)
+                        sd2model_btn = gr.Button(value="Generate")
+                with gr.Column():
+                    output_plot_esd = gr.Plot(label='Point Cloud')
+                    output_3d_esd = gr.Model3D(value=None)
+                sd2model_btn.click(sd2model, [sd_prompt, sd_prompt_neg, sd_steps, model_type_esd], [output_plot_esd, output_3d_esd])
+                gd_scale_esd.change(gd_scale_changed, [gd_scale_esd])
+                grid_size_esd.change(grid_size_changed, [grid_size_esd])
+                
         
         with gr.Tab("Information"):
             gr.Label(VERSION, label='WebUI version')

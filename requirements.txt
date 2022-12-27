@@ -4,4 +4,9 @@ pyntcloud
 plotly
 trimesh
 tqdm
+diffusers
+transformers   
+scipy
+ftfy
+accelerate
 gradio

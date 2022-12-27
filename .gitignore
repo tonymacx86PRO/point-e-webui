@@ -5,6 +5,7 @@
 # Outputs
 /outputs/text2pc/*
 /outputs/image2pc/*
+/outputs/sd2pc/*
 
 # Other stuff
 another-demo.py
