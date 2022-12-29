@@ -33,7 +33,7 @@ from diffusers import StableDiffusionPipeline
 # Variables
 
 # CONSTANTS
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 CWD = os.getcwd()
 
 # Pytorch device
@@ -387,7 +387,6 @@ def main():
                 grid_size_i.change(grid_size_changed, [grid_size_i])
         
         with gr.Tab("Stable Diffusion to 3D"):
-            gr.Markdown("## Temporarily use the runwayml/stable-diffusion-v1-5 model and also a Euler A sampler")
             with gr.Row():
                 with gr.Column():
                         sd_prompt = gr.Textbox(label='Prompt')
